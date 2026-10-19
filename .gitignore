@@ -1,0 +1,10 @@
+output/
+scratch/
+models/
+.venv/
+docs/
+run.log
+.DS_Store
+.pytest_cache/
+
+__pycache__/
