@@ -67,7 +67,7 @@ With uv: `uv run storyboard.py my_script.txt`.
 | Never spend more than N images | `--max-images 20` (refuses to start if the run needs more) |
 | Faster or slower pacing | `--words-per-scene 15` (default 35: about 13 seconds per scene) |
 | One image for every scene, even repeats | `--no-reuse` |
-| Change the flat-colour scene colour | `--plain-color "#EBC150"` |
+| Change the flat-colour scene colour | `--plain-color "#EBC150"` (yellow). Scenes the storyboard calls white, green, grey, blue or red use that colour instead |
 | Use another folder | `--out folder`, `--refs folder`, `--examples file` |
 
 To change a scene's text, edit `storyboard.json`, delete that `scene_NN.png` (or use `--scene N`) and run again.

@@ -40,6 +40,7 @@ REF_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 DEFAULT_PLAIN_COLOR = "#EBC150"  # the flat yellow in the example videos
 # other flat colours seen in the example videos; yellow is not listed so --plain-color keeps controlling it
+INSIDE_BODY_WORDS = {"inside", "body", "blood", "organ", "organs"}  # detailed anatomy backgrounds are painted flat instead
 NAMED_COLORS = {"white": "#FFFFFF", "green": "#6BBF59", "grey": "#B8B8B8", "gray": "#B8B8B8", "blue": "#5B9BD5", "red": "#D9534F"}
 IMAGE_WIDTH, IMAGE_HEIGHT = (int(v) for v in IMAGE_SIZE.split("x"))
 DEFAULT_REFS_DIR = Path("refs")
@@ -62,7 +63,7 @@ STYLE_WITHOUT_REFS = (
     "very simple shapes and minimal detail."
 )
 IMAGE_RULES = (
-    "Background only: do not draw any characters, people, hands or text. Wide landscape composition. "
+    "Background only: do not draw any characters, people, hands or text. Wide landscape composition. No signs, labels or lettering. "
     "Minimal: only a few large simple objects, plenty of empty space, bright flat colours."
 )
 
@@ -158,6 +159,11 @@ def scene_prompt(style: str, background: str, plain_color: str = "") -> str:
     return f"{style} {IMAGE_RULES} Scene: {background}"
 
 
+def is_inside_body(background: str) -> bool:
+    # shortcut: keyword match, so "body language" would also go flat; upgrade if that ever shows up
+    return bool(INSIDE_BODY_WORDS & set(re.findall(r"[a-z]+", background.lower())))
+
+
 def plain_color_for(background: str, default: str) -> str:
     for word in re.findall(r"[a-z]+", background.lower()):
         if word in NAMED_COLORS:
@@ -242,7 +248,7 @@ def build_storyboard(client, script: str, style: str, examples: str, plain_color
     scenes, first_seen = [], {}
     for i, p in enumerate(parts, 1):
         background = p["background"].strip()
-        plain = bool(p.get("plain_background"))
+        plain = bool(p.get("plain_background")) or is_inside_body(background)
         color = plain_color_for(background, plain_color) if plain else ""
         key = background_key(background)
         reuse_of = first_seen.get(key, 0) if reuse and not plain else 0

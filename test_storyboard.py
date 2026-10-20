@@ -402,3 +402,9 @@ def test_plain_color_for_uses_named_colour_else_default():
     assert sb.plain_color_for("White.", "#EBC150") == "#FFFFFF"
     assert sb.plain_color_for("Green", "#EBC150") == "#6BBF59"
     assert sb.plain_color_for("Yellow.", "#112233") == "#112233"
+
+
+def test_inside_body_backgrounds_are_flat():
+    assert sb.is_inside_body("Inside the body")
+    assert sb.is_inside_body("Blood vessel.")
+    assert not sb.is_inside_body("Kitchen")
