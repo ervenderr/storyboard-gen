@@ -75,7 +75,7 @@ Write short, plain, concrete notes like the examples. For each scene return:
 - happening: what is happening on screen, one short line
 - background: the environment only (a room, street, office), a few words. No characters, props, diagrams, anatomy,
   icons, labels or text: the editors draw those by hand. When a scene is in the same place as an earlier scene,
-  reuse that earlier background text exactly. Keep it simple and flat: never use the words gradient, glow, texture,
+  reuse that earlier background text exactly. Name ONE single place, never two joined by a slash or 'then', and never a timeline, chart or collage. Keep it simple and flat: never use the words gradient, glow, texture,
   shading or pattern. For anything inside the body or abstract, use a plain colour instead.
 - plain_background: true if the scene is only a flat colour (for a diagram, label, text or close-up; background then
   names the colour, e.g. "Yellow."), false if there is a real environment
