@@ -396,3 +396,9 @@ def test_script_with_windows_bom_is_read_cleanly(tmp_path):
     f = tmp_path / "script.txt"
     f.write_bytes("﻿Hello there.".encode("utf-8"))
     assert sb.read_text(f) == "Hello there."
+
+
+def test_plain_color_for_uses_named_colour_else_default():
+    assert sb.plain_color_for("White.", "#EBC150") == "#FFFFFF"
+    assert sb.plain_color_for("Green", "#EBC150") == "#6BBF59"
+    assert sb.plain_color_for("Yellow.", "#112233") == "#112233"

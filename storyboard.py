@@ -39,6 +39,8 @@ MAX_REFS = 10
 REF_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 DEFAULT_PLAIN_COLOR = "#EBC150"  # the flat yellow in the example videos
+# other flat colours seen in the example videos; yellow is not listed so --plain-color keeps controlling it
+NAMED_COLORS = {"white": "#FFFFFF", "green": "#6BBF59", "grey": "#B8B8B8", "gray": "#B8B8B8", "blue": "#5B9BD5", "red": "#D9534F"}
 IMAGE_WIDTH, IMAGE_HEIGHT = (int(v) for v in IMAGE_SIZE.split("x"))
 DEFAULT_REFS_DIR = Path("refs")
 DEFAULT_EXAMPLES = Path("examples") / "storyboard_examples.md"
@@ -59,7 +61,10 @@ STYLE_WITHOUT_REFS = (
     "Simple 2D cartoon: thick bold black outlines, completely flat solid colours with no gradients, texture or shading, "
     "very simple shapes and minimal detail."
 )
-IMAGE_RULES = "Background only: do not draw any characters, people, hands or text. Wide landscape composition."
+IMAGE_RULES = (
+    "Background only: do not draw any characters, people, hands or text. Wide landscape composition. "
+    "Minimal: only a few large simple objects, plenty of empty space, bright flat colours."
+)
 
 SYSTEM_PROMPT = """You are a storyboard artist for animated explainer videos.
 You get a script as numbered sentences. Group CONSECUTIVE sentences into scenes. Cover every sentence, in order.
@@ -69,7 +74,8 @@ Write short, plain, concrete notes like the examples. For each scene return:
 - happening: what is happening on screen, one short line
 - background: the environment only (a room, street, office), a few words. No characters, props, diagrams, anatomy,
   icons, labels or text: the editors draw those by hand. When a scene is in the same place as an earlier scene,
-  reuse that earlier background text exactly.
+  reuse that earlier background text exactly. Keep it simple and flat: never use the words gradient, glow, texture,
+  shading or pattern. For anything inside the body or abstract, use a plain colour instead.
 - plain_background: true if the scene is only a flat colour (for a diagram, label, text or close-up; background then
   names the colour, e.g. "Yellow."), false if there is a real environment
 - characters_props: the characters, props, diagrams and icons the editors draw by hand
@@ -152,6 +158,13 @@ def scene_prompt(style: str, background: str, plain_color: str = "") -> str:
     return f"{style} {IMAGE_RULES} Scene: {background}"
 
 
+def plain_color_for(background: str, default: str) -> str:
+    for word in re.findall(r"[a-z]+", background.lower()):
+        if word in NAMED_COLORS:
+            return NAMED_COLORS[word]
+    return default
+
+
 def hex_color(value: str) -> str:
     if not HEX_COLOR.fullmatch(value or ""):
         raise argparse.ArgumentTypeError(f"{value!r} is not a hex colour like #EBC150")
@@ -230,6 +243,7 @@ def build_storyboard(client, script: str, style: str, examples: str, plain_color
     for i, p in enumerate(parts, 1):
         background = p["background"].strip()
         plain = bool(p.get("plain_background"))
+        color = plain_color_for(background, plain_color) if plain else ""
         key = background_key(background)
         reuse_of = first_seen.get(key, 0) if reuse and not plain else 0
         if not plain:
@@ -243,9 +257,9 @@ def build_storyboard(client, script: str, style: str, examples: str, plain_color
             "characters_props": p["characters_props"].strip(),
             "on_screen_text": p.get("on_screen_text", "").strip(),
             "transitions": p.get("transitions", "").strip(),
-            "image_prompt": scene_prompt(style, background, plain_color if plain else ""),
+            "image_prompt": scene_prompt(style, background, color),
             "image_file": f"scene_{i:0{width}d}.png",
-            "plain_color": plain_color if plain else "",
+            "plain_color": color,
             "reuse_of": reuse_of,
         })
     return scenes
