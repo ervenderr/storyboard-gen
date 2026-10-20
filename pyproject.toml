@@ -3,6 +3,6 @@ name = "storyboard-gen"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "mflux>=0.23.0",
-    "pillow<13",
+    "openai>=3.35.1",
+    "python-dotenv>=1.2.4",
 ]

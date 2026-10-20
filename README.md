@@ -1,184 +1,105 @@
 # storyboard-gen
 
-Paste a script, get a storyboard of scenes and one background image per scene, all in a fixed art style.
-Runs 100% locally on a Mac. No API keys, no per-image cost.
+Paste a script, get a storyboard, a CSV and one background image per scene in your art style.
+Uses the OpenAI API. Pure Python, runs on Windows, macOS, Linux or in the cloud.
+Paths with spaces need quotes: `python storyboard.py "my script.txt"`.
 
 ```
-script.txt  ->  scenes (local LLM)  ->  background images (local image model)
+script.txt -> storyboard (scenes) -> storyboard.csv + scene_01.png, scene_02.png, ...
 ```
-
-Open [docs/how-it-works.html](docs/how-it-works.html) in a browser for the diagram and explanation. See [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md) for the box-by-box walkthrough and
-[docs/pipeline.excalidraw](docs/pipeline.excalidraw) for the diagram (drag the file onto https://excalidraw.com).
-
-## Stack
-
-| Part | Tool | Role |
-|---|---|---|
-| Storyboard LLM | **qwen3** via **Ollama** (local) | Splits the script into scenes and writes a background description for each |
-| Image model | **Z-Image-Turbo** (Tongyi-MAI), 4-bit quantized | Generates one 1024x576 image per scene |
-| Image runner | **mflux** (MLX, Apple Silicon) | Runs the image model on the Mac GPU |
-| Glue | **Python 3.12** single script, **uv** | `storyboard.py` |
-| Tests | pytest | `test_storyboard.py` (9 tests on scene validation) |
-
-Why these: FLUX.1-schnell is gated on Hugging Face (needs an account and license click), Z-Image-Turbo is not.
-Claude/Gemini APIs were skipped because there is no key and the goal was zero cost.
-
-## Requirements
-
-- Apple Silicon Mac (built and tested on M5, 16 GB RAM)
-- [uv](https://docs.astral.sh/uv/) and [Ollama](https://ollama.com)
-- About 20 GB free disk for the first run (12 GB download, 5.5 GB quantized copy kept in `models/`)
 
 ## Setup (once)
 
-```bash
-ollama pull qwen3        # the storyboard LLM
-cd ~/Projects/storyboard-gen
-uv sync                  # Python deps, creates .venv (Python 3.12)
-```
+**Windows**
 
-The first image run downloads Z-Image-Turbo (about 12 GB) and builds the 4-bit copy automatically.
+1. Install Python 3.12 or newer from python.org. On the first installer screen tick **"Add python.exe to PATH"**.
+2. Download this repo (green Code button > Download ZIP), unzip it, open the folder, click the address bar, type `cmd` and press Enter. A command window opens in that folder.
+3. Install the packages:
+   ```
+   pip install -r requirements.txt
+   ```
+4. Create the key file. In Notepad choose File > Save As, set "Save as type" to **All Files**, name it exactly `.env` (not `.env.txt`), and put one line in it:
+   ```
+   OPENAI_API_KEY=sk-your-key-here
+   ```
+   Save it in the same folder as `storyboard.py`.
+5. Put your style images (up to 10) in a folder named `refs`, and your example storyboard in `examples\storyboard_examples.md`.
+6. Run it (see Run below). If `python` is not found, use `py` instead.
+
+If you prefer not to use a `.env` file, set the key for the current window only: `set OPENAI_API_KEY=sk-your-key-here` (Command Prompt) or `$env:OPENAI_API_KEY="sk-your-key-here"` (PowerShell).
+
+**macOS / Linux**
+
+```
+pip install -r requirements.txt
+echo "OPENAI_API_KEY=sk-your-key-here" > .env
+```
+Then add `refs/` and `examples/storyboard_examples.md` as above. (With uv: `uv sync`.)
+
+**In the cloud**: any machine with Python 3.12+ works the same way. Set `OPENAI_API_KEY` as an environment variable instead of a `.env` file.
 
 ## Run
 
-```bash
-# Everything: storyboard, then images
-uv run storyboard.py script.txt
-
-# Review the scenes first, no images yet
-uv run storyboard.py script.txt --storyboard-only
-
-# Edit output/storyboard.json by hand, then generate images from it
-uv run storyboard.py script.txt --from-storyboard
-
-# Write somewhere else instead of output/script/
-uv run storyboard.py script.txt --out my-episode
+```
+python storyboard.py my_script.txt
 ```
 
-`script.txt` is any plain text file. With `--from-storyboard` the script path is still required by the CLI but is not read.
+Output goes to `output/my_script/`:
 
-Output goes to `output/<script name>/`, one folder per script, so runs never overwrite each other
-(use `--out folder` to choose a different place):
+| File | What |
+|---|---|
+| `scene_01.png`, `scene_02.png`, ... | one background image per scene |
+| `storyboard.csv` | Scene Number, Script Text, Visual Direction, Characters/Props, Image Prompt, Image Filename (Visual Direction holds what is happening, the background, on-screen text and transitions) |
+| `storyboard.json` | the same storyboard, used for re-runs |
 
-```
-output/
-  enchanted-forest/          from samples/enchanted-forest.txt
-    storyboard.json          scenes (title + description)
-    scene-01.png             one image per scene, in order
-    scene-02.png
-    ...
-  neon-city/                 from samples/neon-city.txt
-    ...
-```
+With uv: `uv run storyboard.py my_script.txt`.
 
-Running the same script again overwrites that script's folder.
+## Common tasks
 
-Measured on an M5 / 16 GB: about 25 s per image, about 2 minutes for a 5-scene script, 4 GB peak memory.
+| I want to | Command |
+|---|---|
+| Check the storyboard before spending on images | `python storyboard.py my_script.txt --storyboard-only` |
+| Redo one scene | `python storyboard.py my_script.txt --scene 3` (also `1,4` or `2-5`) |
+| Resume after a crash or failures | run the same command again: finished images are skipped |
+| Split the script again from scratch | `--new-storyboard` |
+| Cheaper test images | `--quality low` (`low`, `medium` (default), `high`) |
+| CSV with the example storyboard's 8 columns (timestamp, on-screen text, transitions) plus the image columns | `--full-csv` |
+| Never spend more than N images | `--max-images 20` (refuses to start if the run needs more) |
+| Faster or slower pacing | `--words-per-scene 15` (default 35: about 13 seconds per scene) |
+| One image for every scene, even repeats | `--no-reuse` |
+| Change the flat-colour scene colour | `--plain-color "#EBC150"` |
+| Use another folder | `--out folder`, `--refs folder`, `--examples file` |
 
-## How it generates (short version)
+To change a scene's text, edit `storyboard.json`, delete that `scene_NN.png` (or use `--scene N`) and run again.
 
-1. The script text goes to qwen3 in Ollama with a system prompt and a JSON schema, so the reply is always structured scenes.
-2. Code validates the JSON, removes any sentence that mentions a person, caps at 12 scenes, and saves `storyboard.json`.
-3. For each scene it builds an image prompt: `STYLE. <scene description> EMPTY_SUFFIX`.
-4. `mflux-generate-z-image-turbo` renders each prompt to a PNG (4 steps, 1024x576, fixed seed 42).
+## How it works
 
-## The prompts
+1. The script is split into sentences. The model groups consecutive sentences into scenes and, for each, writes what is happening, the background, the hand-drawn characters and props, the on-screen text and the transitions, in the style of your example storyboard. The voiceover text is taken from the script itself, never from the model, so no words are lost or invented. Scenes always hold whole sentences. Timestamps are estimated from the word count (no audio needed).
+2. Only the background goes into the image prompt, together with your reference images as the style guide, so images have no characters.
+3. Scenes that are just a flat colour behind a diagram or label are painted locally in one colour (no image call, no cost). When a later scene uses the same background as an earlier one, the image is copied instead of generated again, saved under its own scene number.
+4. Images are generated 3 at a time. A failed image is retried twice, then skipped, and the run carries on. At the end it lists the failed scenes; run the same command again to retry only those.
 
-**Storyboard system prompt** (`SYSTEM_PROMPT` in `storyboard.py`):
+## Settings
 
-```
-You are a storyboard artist. Split the script into one scene per distinct location or time change, at most 12. Only use what the script says; do not invent extra scenes.
-For each scene give a short title and a visual description of the BACKGROUND ONLY:
-setting, time of day, lighting, mood, key objects, camera angle.
-Describe an EMPTY scene: never mention people, characters, crew or pronouns for them.
-If the script mentions a boat, show it small and empty, only in scenes on the water. Indoor scenes show only the room.
-Return JSON: {"scenes": [{"title": str, "description": str}]}
-```
+Constants at the top of `storyboard.py`: `STORYBOARD_MODEL` (default `gpt-5-mini`), `IMAGE_MODEL` (default `chatgpt-image-latest`), `IMAGE_SIZE`, `DEFAULT_QUALITY`, `DEFAULT_PLAIN_COLOR`.
 
+## Cost
 
-**Image prompt** (built per scene):
-
-```
-soft watercolor illustration, painterly textures, muted pastel palette, hand-painted storybook background. <scene description> empty uninhabited scene, nobody present
-```
-
-## Demo
-
-Two ready-made scripts in `samples/`, plus the original `sample.txt` (fisherman story):
-
-```bash
-cd ~/Projects/storyboard-gen
-ollama serve                      # skip if Ollama is already running
-
-# 1. Show the storyboard (about 10 s)
-uv run storyboard.py samples/enchanted-forest.txt --storyboard-only --out output/enchanted-forest
-# 2. Generate the images (about 2 min for 5 scenes)
-uv run storyboard.py samples/enchanted-forest.txt --out output/enchanted-forest
-open output/enchanted-forest
-
-# Second script
-uv run storyboard.py samples/neon-city.txt --out output/neon-city
-open output/neon-city
-```
-
-Pre-generated results from both are already in `output/enchanted-forest/` and `output/neon-city/`, in case you want to show them without waiting.
-
-## Change the art style
-
-Edit `STYLE` at the top of `storyboard.py`. That one line is the main lever for matching a client's look.
-Keep it to a comma-separated list of style words (medium, texture, palette, mood).
-If a plain text style is not close enough, the next step is a style LoRA trained on their reference art (not built yet).
-
-## Config (constants at the top of `storyboard.py`)
-
-| Constant | Default | Meaning |
-|---|---|---|
-| `LLM_MODEL` | `qwen3` | Ollama model for scenes |
-| `IMAGE_MODEL` | `z-image-turbo` | Image model name in mflux |
-| `IMAGE_STEPS` | 4 | Diffusion steps (more = slower, usually finer) |
-| `WIDTH`, `HEIGHT` | 1024, 576 | Image size (16:9) |
-| `SEED` | 42 | Same seed for every scene |
-| `MAX_SCENES` | 12 | Hard cap on scenes |
-| `STYLE` | watercolor | The art style text |
-| `EMPTY_SUFFIX` | `empty uninhabited scene, nobody present` | Keeps people out of backgrounds |
+Only scenes with a new, non-flat background call the API. In a test, 9 scenes needed 4 API images. Cost depends on quality and the current OpenAI price: check it before a full run, try `--quality low` first, and use `--max-images` as a safety cap.
 
 ## Tests
 
-```bash
-uv run --with pytest pytest -q
+```
+pip install pytest
+pytest -q
 ```
 
-Covers scene validation only (cleaning, dropping incomplete scenes, scene cap, people filter).
-The LLM call and image generation are not unit tested; they were checked by running the real pipeline and viewing the images.
+The tests use a fake OpenAI client, so they cost nothing. They also run on Windows and Linux through GitHub Actions (`.github/workflows/test.yml`).
 
-## Troubleshooting
+## Example storyboard format
 
-| Symptom | Cause / fix |
-|---|---|
-| `Ollama request ... failed (HTTP Error 500)` | Ollama's runner got stuck (happened after a memory-killed run). `pkill ollama; ollama serve`, then retry |
-| `Ollama request ... failed` with connection refused | Ollama is not running. Start it: `ollama serve` |
-| Image step extremely slow (minutes per image) or killed (exit 137) | The full-precision model needs about 25 GB RAM. Use the 4-bit copy in `models/z-image-turbo-q4` (the script does this automatically). If `models/` was deleted, it rebuilds |
-| `cannot import name '_IntegralLike'` | Pillow 13 is not compatible with Python 3.12. `pyproject.toml` pins `pillow<13`; run `uv sync` |
-| `GatedRepoError 401` for FLUX | FLUX.1-schnell needs a Hugging Face login. This project uses Z-Image-Turbo, which does not |
-| Scene count differs between runs | qwen3 is not deterministic. Use `--storyboard-only`, edit `storyboard.json`, then `--from-storyboard` |
-
-## Known limits
-
-- **Style consistency:** the same style text and seed give a similar look, not the same village or character across scenes. For strict consistency you need a LoRA or a reference-image model.
-- **No people:** backgrounds only. The pipeline removes people on purpose.
-- **qwen3 is small:** scene breakdowns are decent, not Claude-quality. Always glance at the storyboard before a big batch.
-- **Sequential:** one image at a time; each call reloads the model (adds a few seconds).
-- **Mac only:** mflux uses Apple's MLX. For Windows/Linux the image step would need to change (e.g. diffusers + CUDA).
-- **License:** check the Z-Image-Turbo license on Hugging Face before using output commercially.
-
-## Files
+`examples/storyboard_examples.md` is plain text, one scene per line:
 
 ```
-storyboard.py          the whole pipeline
-test_storyboard.py     tests
-sample.txt             sample script (fisherman story)
-pyproject.toml         deps: mflux, pillow<13
-docs/                  HOW-IT-WORKS.md, pipeline.excalidraw
-models/                4-bit image model (generated, git-ignored)
-output/                results (git-ignored)
+Scene 2 | 00:01-00:11 | Voiceover: ... | What's happening: ... | Background: ... | Hand-drawn characters & props: ... | On-screen text: ... | Transitions/Motion: ...
 ```
